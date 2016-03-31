@@ -14,7 +14,7 @@ object CustomerPrize extends App {
     .filter(p => productFitsIndividuallyInTote(p))
     .sorted
     .reverse
-    .take(50) //hack to bypass the OOM errors, we sort by priceVolumeRatio and -weight and test with the 500 optimal products
+    .take(500) //hack to bypass the OOM errors, we sort by priceVolumeRatio and -weight and test with the 500 optimal products
 
   val numProducts = productList.size
 
