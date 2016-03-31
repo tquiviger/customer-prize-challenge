@@ -3,75 +3,80 @@ import domain.Product
 
 object CustomerPrize extends App {
 
-  val volumeAvailable = 40 * 30 * 35
   val productsFilename = "products.csv"
+  val toteLength = 40
+  val toteWidth = 30
+  val toteHeight = 35
+
+  val availableVolume = toteLength * toteWidth * toteHeight
 
   val productList = parseProductFile(productsFilename)
     .filter(p => productFitsIndividuallyInTote(p))
     .sorted
     .reverse
-    .map(p => (p.productId, p.volume, p.price))
-    .take(800) //hack to bypass the OOM errors, we sort by priceVolumeRatio and test with the XXX optimal products
+    .take(50) //hack to bypass the OOM errors, we sort by priceVolumeRatio and -weight and test with the 500 optimal products
 
-  val s = System.currentTimeMillis
-  val productsSize = productList.size
+  val numProducts = productList.size
 
-  val m = Array.ofDim[Int](productsSize + 1, volumeAvailable + 1)
+  val startTime = System.currentTimeMillis
+
+  //Knapsack 0/1 algorithm
+  val matrix = Array.ofDim[Int](numProducts + 1, availableVolume + 1)
   val plm = (List((
-    for {v <- 0 to volumeAvailable}
-      yield Set[(Int, Int, Int)]()).toArray) ++
+    for {v <- 0 to availableVolume}
+      yield Set[Product]()).toArray) ++
     (
       for {
-        n <- 0 until productsSize
+        n <- 0 until numProducts
         colN = (
-          for {v <- 0 to volumeAvailable}
-            yield Set[(Int, Int, Int)](productList(n))).toArray
+          for {v <- 0 to availableVolume}
+            yield Set[Product](productList(n))).toArray
       } yield colN
       )
     ).toArray
 
-  val s1 = System.currentTimeMillis
-  val elapsedBuilding = (s1 - s) / 1000
-  println("Matrix building elapsed time: " + elapsedBuilding + " sec" + "\n")
-
-  1 to productsSize foreach { n =>
-    println("N: " + n)
-    0 to volumeAvailable foreach { currentVolume =>
+  1 to numProducts foreach { n =>
+    0 to availableVolume foreach { currentVolume =>
       def prod = productList(n - 1)
-      def prodVolume = prod._2
-      def prodPrice = prod._3
+      def prodVolume = prod.volume
+      def prodPrice = prod.price
       if (currentVolume < prodVolume) {
-        m(n)(currentVolume) = m(n - 1)(currentVolume)
+        matrix(n)(currentVolume) = matrix(n - 1)(currentVolume)
         plm(n)(currentVolume) = plm(n - 1)(currentVolume)
       }
       else {
-        if (m(n - 1)(currentVolume) >= m(n - 1)(currentVolume - prodVolume) + prodPrice) {
-          m(n)(currentVolume) = m(n - 1)(currentVolume)
+        if (matrix(n - 1)(currentVolume) >= matrix(n - 1)(currentVolume - prodVolume) + prodPrice) {
+          matrix(n)(currentVolume) = matrix(n - 1)(currentVolume)
           plm(n)(currentVolume) = plm(n - 1)(currentVolume)
         }
         else {
-          m(n)(currentVolume) = m(n - 1)(currentVolume - prodVolume) + prodPrice
+          matrix(n)(currentVolume) = matrix(n - 1)(currentVolume - prodVolume) + prodPrice
           plm(n)(currentVolume) = plm(n - 1)(currentVolume - prodVolume) + prod
         }
       }
     }
   }
 
-  val elapsedTotal = (System.currentTimeMillis - s1) / 1000
-  println("# of products: " + plm(productsSize)(volumeAvailable).size + " of " + productList.size)
-  println("Total volume: " + (0 /: plm(productsSize)(volumeAvailable).map { prod => prod._2 }) (_ + _))
-  println("Total price: " + m(productsSize)(volumeAvailable))
-  println("Sum of the product Ids: " + (0 /: plm(productsSize)(volumeAvailable).map { prod => prod._1 }) (_ + _))
+  val elapsedTotal = (System.currentTimeMillis - startTime) / 1000
+  val productsFound = plm(numProducts)(availableVolume).toList
   println("Total elapsed time: " + elapsedTotal + " sec" + "\n")
+  println("# of products: " + productsFound.size + " of " + productList.size)
+  println("Total volume: " + productsFound.map { prod => prod.volume }.sum) //toList to deal with 2 products having the same volume, if we keep a Set, the map will keep only 1 volume out of the 2
+  println("Total price: " + matrix(numProducts)(availableVolume))
+  println("Total weight: " + productsFound.map { prod => prod.weight }.sum)
+  println("Products : ----------------------------------------")
+  println(productsFound.foreach(println))
+  println("---------------------------------------------------")
+  print("All right! Let's send that to : " + productsFound.map { prod => prod.productId }.sum + "@redmart.com")
 
 
   def productFitsIndividuallyInTote(p: Product): Boolean = {
-    p.length < 45 && p.width < 30 && p.height < 35
+    p.length < toteLength && p.width < toteWidth && p.height < toteHeight
   }
 
-  def parseProductFile(path: String): List[Product] = {
+  def parseProductFile(url: String): List[Product] = {
     Source
-      .fromURL(getClass.getResource(path))
+      .fromInputStream(getClass.getResourceAsStream(url))
       .getLines()
       .map(s => s.split(","))
       .map(strings =>
