@@ -12,9 +12,13 @@ object CustomerPrize extends App {
 
   val productList = parseProductFile(productsFilename)
     .filter(p => productFitsIndividuallyInTote(p))
+     // .filter(_.volume < 2800)
     .sorted
     .reverse
-    .take(500) //hack to bypass the OOM errors, we sort by priceVolumeRatio and -weight and test with the 500 optimal products
+    .take(400)
+  //hack to bypass the OOM errors, we sort by priceVolumeRatio and -weight and test with the 500 optimal products
+
+  productList.foreach(println)
 
   val numProducts = productList.size
 
@@ -65,7 +69,7 @@ object CustomerPrize extends App {
   println("Total price: " + matrix(numProducts)(availableVolume))
   println("Total weight: " + productsFound.map { prod => prod.weight }.sum)
   println("Products : ----------------------------------------")
-  println(productsFound.foreach(println))
+  println(productsFound.sortBy(_.productId)foreach(println))
   println("---------------------------------------------------")
   print("All right! Let's send that to : " + productsFound.map { prod => prod.productId }.sum + "@redmart.com")
 
